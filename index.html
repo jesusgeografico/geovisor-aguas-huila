@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Geovisor Agua Rural Huila</title>
+<meta name="description" content="Cobertura de acueducto, agua tratada, micromedición y saneamiento en las veredas rurales del Huila.">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Public+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: panel de consulta a la izquierda + mapa a pantalla completa; en teléfono, mapa arriba y panel debajo */
+:root {
+  --bg: #f6f8f7;
+  --panel: #fdfefd;
+  --map: #e9eeec;
+  --fg: #17262b;
+  --muted: #5a6a6e;
+  --line: #d6dedb;
+  --accent: #155a72;
+  --accent-soft: #e1eef1;
+  --c0: #f1e1c6;
+  --c1: #cde3e6;
+  --c2: #8dc0cb;
+  --c3: #4890a6;
+  --c4: #1b5874;
+  --cn: #dfe2df;
+  --edge: rgba(255,255,255,.75);
+  --mun-edge: #26363b;
+  --alta: #bf4f35;
+  --media: #d79a2f;
+  --baja: #4e9364;
+  --font-display: "Barlow Semi Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --font-body: "Public Sans", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111a1d; --panel: #152024; --map: #0d1517; --fg: #e3ecec; --muted: #93a6aa; --line: #2a3a3f;
+    --accent: #8ccfe0; --accent-soft: #1d3a43;
+    --c0: #5c4a2f; --c1: #23434c; --c2: #2c6a7b; --c3: #4a9db3; --c4: #94d6e5; --cn: #262f32;
+    --edge: rgba(13,21,23,.85); --mun-edge: #d9e6e8;
+    --alta: #e2795e; --media: #e8b75a; --baja: #74bd8a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111a1d; --panel: #152024; --map: #0d1517; --fg: #e3ecec; --muted: #93a6aa; --line: #2a3a3f;
+  --accent: #8ccfe0; --accent-soft: #1d3a43;
+  --c0: #5c4a2f; --c1: #23434c; --c2: #2c6a7b; --c3: #4a9db3; --c4: #94d6e5; --cn: #262f32;
+  --edge: rgba(13,21,23,.85); --mun-edge: #d9e6e8;
+  --alta: #e2795e; --media: #e8b75a; --baja: #74bd8a;
+  color-scheme: dark;
+}
+
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 14px; line-height: 1.45; }
+* { box-sizing: border-box; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.app { display: grid; grid-template-columns: 380px minmax(0, 1fr); height: 100%; }
+.panel { background: var(--panel); border-right: 1px solid var(--line); overflow-y: auto; display: flex; flex-direction: column; min-width: 0; }
+.panel-inner { display: flex; flex-direction: column; gap: 20px; padding-block: 20px 28px; padding-left: max(18px, env(safe-area-inset-left, 0px)); padding-right: 18px; }
+.mapwrap { position: relative; min-width: 0; background: var(--map); }
+#map { position: absolute; inset: 0; background: var(--map); }
+
+header h1 { font-family: var(--font-display); font-weight: 700; font-size: 26px; line-height: 1.05; margin: 0; letter-spacing: .005em; text-wrap: balance; }
+header p { margin: 6px 0 0; color: var(--muted); font-size: 12.5px; }
+.eyebrow { font-family: var(--font-display); font-weight: 600; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+
+.seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 8px; padding: 3px; gap: 3px; background: var(--bg); }
+.seg button { border: 0; background: transparent; padding: 7px 8px; border-radius: 6px; cursor: pointer; font-weight: 500; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--panel); color: var(--fg); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+
+.inds { display: flex; flex-direction: column; gap: 2px; }
+.ind { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 4px 10px; border: 0; background: transparent; text-align: left; padding: 8px 10px; border-radius: 7px; cursor: pointer; }
+.ind:hover { background: var(--bg); }
+.ind[aria-pressed="true"] { background: var(--accent-soft); }
+.ind .n { font-weight: 500; }
+.ind[aria-pressed="true"] .n { font-weight: 600; }
+.ind .v { font-family: var(--font-display); font-weight: 600; font-size: 17px; font-variant-numeric: tabular-nums; }
+.ind .bar { grid-column: 1 / -1; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.ind .bar i { display: block; height: 100%; background: var(--accent); }
+.ind .scope { font-size: 11.5px; color: var(--muted); font-weight: 400; }
+
+.search { position: relative; }
+.search input { width: 100%; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 9px 12px; }
+.results { position: absolute; z-index: 1100; left: 0; right: 0; top: calc(100% + 4px); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.14); max-height: 280px; overflow-y: auto; padding: 4px; }
+.results button { display: flex; justify-content: space-between; gap: 10px; width: 100%; border: 0; background: transparent; text-align: left; padding: 7px 9px; border-radius: 6px; cursor: pointer; }
+.results button:hover, .results button.on { background: var(--accent-soft); }
+.results small { color: var(--muted); white-space: nowrap; }
+
+.ficha { border-top: 1px solid var(--line); padding-top: 16px; display: flex; flex-direction: column; gap: 12px; }
+.ficha-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.ficha h2 { font-family: var(--font-display); font-weight: 700; font-size: 24px; line-height: 1.05; margin: 0; text-wrap: balance; }
+.ficha .sub { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
+.linkbtn { border: 1px solid var(--line); background: transparent; border-radius: 6px; padding: 4px 9px; font-size: 12px; cursor: pointer; white-space: nowrap; color: var(--accent); font-weight: 500; }
+.linkbtn:hover { background: var(--accent-soft); }
+.facts { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; }
+.fact { background: var(--bg); border-radius: 8px; padding: 8px 10px; min-width: 0; }
+.fact b { display: block; font-family: var(--font-display); font-weight: 600; font-size: 19px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.fact span { font-size: 11.5px; color: var(--muted); }
+.kv { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 4px 12px; font-size: 13px; margin: 0; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; overflow-wrap: anywhere; }
+.rows { display: flex; flex-direction: column; gap: 9px; }
+.row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 3px 10px; }
+.row .l { font-size: 13px; }
+.row .p { font-family: var(--font-display); font-weight: 600; font-size: 15px; font-variant-numeric: tabular-nums; }
+.row .meter { grid-column: 1 / -1; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.row .meter i { display: block; height: 100%; }
+.row .c { grid-column: 1 / -1; font-size: 11.5px; color: var(--muted); }
+.pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #fff; }
+.pill.Alta { background: var(--alta); } .pill.Media { background: var(--media); color: #2a1f08; } .pill.Baja { background: var(--baja); }
+.prio-strip { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; }
+.prio-strip div { border-radius: 8px; padding: 8px 10px; background: var(--bg); border-top: 3px solid; }
+.prio-strip b { display: block; font-family: var(--font-display); font-size: 20px; font-weight: 700; line-height: 1.1; }
+.prio-strip span { font-size: 11.5px; color: var(--muted); }
+
+.rank { display: flex; flex-direction: column; }
+.rank button { display: grid; grid-template-columns: 22px minmax(0,1fr) 92px 48px; align-items: center; gap: 8px; border: 0; background: transparent; padding: 5px 4px; border-radius: 6px; cursor: pointer; text-align: left; font-size: 13px; }
+.rank button:hover { background: var(--bg); }
+.rank button.sel { background: var(--accent-soft); }
+.rank .i { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 11.5px; text-align: right; }
+.rank .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank .b { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.rank .b i { display: block; height: 100%; }
+.rank .pv { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--font-display); font-weight: 600; }
+.note { font-size: 11.5px; color: var(--muted); margin: 0; }
+
+/* Leyenda y avisos sobre el mapa */
+.legend { background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; box-shadow: 0 2px 10px rgba(0,0,0,.12); min-width: 170px; font-size: 12.5px; }
+.legend h3 { margin: 0 0 6px; font-family: var(--font-display); font-weight: 600; font-size: 14px; }
+.legend ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.legend li { display: grid; grid-template-columns: 16px minmax(0,1fr) auto; gap: 8px; align-items: center; }
+.legend .sw { width: 16px; height: 12px; border-radius: 2px; border: 1px solid var(--line); }
+.legend .ct { color: var(--muted); font-variant-numeric: tabular-nums; }
+.loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); z-index: 500; pointer-events: none; font-family: var(--font-display); font-size: 16px; }
+
+/* Leaflet: reglas esenciales (la hoja de estilos de la librería no se puede cargar desde CDN) */
+.leaflet-pane, .leaflet-pane > svg, .leaflet-pane > canvas, .leaflet-zoom-box, .leaflet-layer { position: absolute; left: 0; top: 0; }
+.leaflet-container { overflow: hidden; -webkit-tap-highlight-color: transparent; font-family: var(--font-body); }
+.leaflet-container.leaflet-touch-drag { touch-action: none; }
+.leaflet-pane { z-index: 400; }
+.leaflet-overlay-pane { z-index: 400; }
+.leaflet-tooltip-pane { z-index: 650; }
+.leaflet-map-pane canvas { z-index: 100; }
+.leaflet-map-pane svg { z-index: 200; }
+.leaflet-zoom-animated { transform-origin: 0 0; }
+.leaflet-zoom-anim .leaflet-zoom-animated { transition: transform .25s cubic-bezier(0,0,.25,1); }
+.leaflet-zoom-anim .leaflet-zoom-hide { visibility: hidden; }
+.leaflet-interactive { cursor: pointer; }
+.leaflet-grab { cursor: grab; }
+.leaflet-dragging .leaflet-grab { cursor: grabbing; }
+.leaflet-control { position: relative; z-index: 800; pointer-events: auto; float: left; clear: both; }
+.leaflet-top, .leaflet-bottom { position: absolute; z-index: 1000; pointer-events: none; }
+.leaflet-top { top: 0; } .leaflet-bottom { bottom: env(safe-area-inset-bottom, 0px); } .leaflet-left { left: 0; } .leaflet-right { right: max(0px, env(safe-area-inset-right, 0px)); }
+.leaflet-right .leaflet-control { float: right; }
+.leaflet-top .leaflet-control { margin-top: 12px; } .leaflet-bottom .leaflet-control { margin-bottom: 12px; }
+.leaflet-left .leaflet-control { margin-left: 12px; } .leaflet-right .leaflet-control { margin-right: 12px; }
+.leaflet-bar { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel); box-shadow: 0 2px 10px rgba(0,0,0,.12); }
+.leaflet-bar a { display: block; width: 34px; height: 34px; line-height: 34px; text-align: center; text-decoration: none; color: var(--fg); font: 600 18px/34px var(--font-body); }
+.leaflet-bar a + a { border-top: 1px solid var(--line); }
+.leaflet-bar a:hover { background: var(--bg); }
+.leaflet-bar a.leaflet-disabled { color: var(--muted); opacity: .5; cursor: default; }
+.leaflet-control-scale-line { border: 2px solid var(--muted); border-top: 0; padding: 1px 6px; font-size: 11px; color: var(--fg); background: color-mix(in srgb, var(--panel) 80%, transparent); white-space: nowrap; }
+.leaflet-control-attribution { background: color-mix(in srgb, var(--panel) 85%, transparent); color: var(--muted); font-size: 11px; padding: 2px 8px; margin: 0 !important; border-top-left-radius: 6px; }
+.leaflet-control-attribution a { color: inherit; }
+.leaflet-tooltip { position: absolute; background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; box-shadow: 0 4px 14px rgba(0,0,0,.16); white-space: nowrap; pointer-events: none; font-size: 12.5px; line-height: 1.35; }
+.leaflet-tooltip b { font-family: var(--font-display); font-weight: 600; font-size: 14px; }
+.leaflet-tooltip .tv { font-variant-numeric: tabular-nums; }
+
+@media (max-width: 860px) {
+  html, body { height: auto; }
+  .app { display: flex; flex-direction: column; height: auto; }
+  .mapwrap { order: -1; height: 62vh; min-height: 360px; }
+  .panel { border-right: 0; border-top: 1px solid var(--line); overflow: visible; }
+  .panel-inner { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .legend { min-width: 0; padding: 8px 10px; font-size: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .leaflet-zoom-anim .leaflet-zoom-animated { transition: none; }
+}
+body { margin: 0; }
+.leaflet-container .leaflet-control-attribution { background: color-mix(in srgb, var(--panel) 85%, transparent); color: var(--muted); }
+.leaflet-container .leaflet-control-attribution a { color: var(--accent); }
+.leaflet-bar a, .leaflet-touch .leaflet-bar a { background: var(--panel); color: var(--fg); border-bottom: 0; }
+.leaflet-touch .leaflet-bar, .leaflet-touch .leaflet-control-layers { border: 1px solid var(--line); }
+.leaflet-tooltip-top:before, .leaflet-tooltip-bottom:before, .leaflet-tooltip-left:before, .leaflet-tooltip-right:before { display: none; }
+.leaflet-control-layers { background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
+.leaflet-control-layers-toggle { width: 34px; height: 34px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="panel">
+    <div class="panel-inner">
+      <header>
+        <h1>Agua y saneamiento rural del Huila</h1>
+        <p>1.517 veredas en 37 municipios · Informe estadístico de cobertura rural</p>
+      </header>
+
+      <section>
+        <p class="eyebrow">Ver por</p>
+        <div class="seg" role="group" aria-label="Nivel del mapa">
+          <button id="lvl-ver" type="button" aria-pressed="true">Veredas</button>
+          <button id="lvl-mun" type="button" aria-pressed="false">Municipios</button>
+        </div>
+      </section>
+
+      <section>
+        <p class="eyebrow">Indicador · valor departamental</p>
+        <div class="inds" id="inds" role="group" aria-label="Indicador"></div>
+      </section>
+
+      <section class="search">
+        <label class="eyebrow" for="q">Buscar vereda o municipio</label>
+        <input id="q" type="search" autocomplete="off" placeholder="Ej.: La Unión, Teruel…">
+        <div class="results" id="results" hidden></div>
+      </section>
+
+      <section class="ficha" id="ficha" aria-live="polite"></section>
+
+      <section class="ficha">
+        <p class="eyebrow" id="rank-title" style="margin:0">Municipios</p>
+        <div class="rank" id="rank"></div>
+        <p class="note">Cobertura = población atendida ÷ población rural. Micromedición = suscriptores con medidor ÷ suscriptores. IAS = promedio de acueducto, agua tratada y saneamiento; prioridad alta ≤ 28,4 y media ≤ 37,7.</p>
+      </section>
+    </div>
+  </aside>
+  <main class="mapwrap">
+    <div id="map" aria-label="Mapa de veredas del Huila"></div>
+    <div class="loading" id="loading">Cargando 1.517 veredas…</div>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(function () {
+  const NF = new Intl.NumberFormat('es-CO');
+  const P1 = new Intl.NumberFormat('es-CO', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const fmtN = v => NF.format(v);
+  const fmtP = v => (v < 0 || v == null) ? 'Sin dato' : P1.format(v) + ' %';
+
+  const IND = [
+    { k: 'acu',   n: 'Acueducto',               num: 'p_ab', den: 'pob', u: 'hab.' },
+    { k: 'trat',  n: 'Agua con tratamiento',    num: 'p_tr', den: 'pob', u: 'hab.' },
+    { k: 'micro', n: 'Micromedición',           num: 'mic',  den: 'sus', u: 'suscriptores' },
+    { k: 'alc',   n: 'Alcantarillado',          num: 'p_al', den: 'pob', u: 'hab.' },
+    { k: 'solp',  n: 'Soluciones individuales', num: 'p_si', den: 'pob', u: 'hab.' },
+    { k: 'sane',  n: 'Saneamiento total',       num: null,   den: 'pob', u: 'hab.' },
+    { k: 'ias',   n: 'Índice IAS y prioridad',  mun: true }
+  ];
+  const CLASSES = [
+    { id: 0, t: '0 %',        tok: '--c0' },
+    { id: 1, t: '0,1 – 25 %', tok: '--c1' },
+    { id: 2, t: '25 – 50 %',  tok: '--c2' },
+    { id: 3, t: '50 – 75 %',  tok: '--c3' },
+    { id: 4, t: '75 – 100 %', tok: '--c4' },
+    { id: 'n', t: 'Sin dato', tok: '--cn' }
+  ];
+  const PRIO = [
+    { id: 'Alta',  t: 'Alta (IAS ≤ 28,4)',      tok: '--alta' },
+    { id: 'Media', t: 'Media (28,5 – 37,7)',    tok: '--media' },
+    { id: 'Baja',  t: 'Baja (IAS > 37,7)',      tok: '--baja' }
+  ];
+  const cls = v => (v == null || v < 0) ? 'n' : v === 0 ? 0 : v <= 25 ? 1 : v <= 50 ? 2 : v <= 75 ? 3 : 4;
+
+  let C = {};
+  function readTokens() {
+    const s = getComputedStyle(document.documentElement);
+    ['--c0','--c1','--c2','--c3','--c4','--cn','--edge','--mun-edge','--accent','--alta','--media','--baja','--line']
+      .forEach(t => C[t] = s.getPropertyValue(t).trim());
+  }
+  readTokens();
+
+  const state = { level: 'ver', ind: 'acu', sel: null };
+  let R, VER, MUN, verLayer, munLayer, map, legendCtl;
+  const byMun = {};
+
+  map = L.map('map', { preferCanvas: true, zoomSnap: 0.25, zoomControl: false, attributionControl: true, minZoom: 6.5, maxZoom: 15 });
+  map.attributionControl.setPrefix(false);
+  map.attributionControl.addAttribution('Fuente: shapefiles de soporte del informe de agua y saneamiento rural del Huila');
+  L.control.zoom({ position: 'topright', zoomInTitle: 'Acercar', zoomOutTitle: 'Alejar' }).addTo(map);
+  L.control.scale({ position: 'bottomright', imperial: false }).addTo(map);
+  map.setView([2.5, -75.6], 8);
+  const BASES = {
+    'Calles': L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { subdomains: 'abcd', maxZoom: 19, attribution: '&copy; OpenStreetMap &copy; CARTO' }),
+    'Satélite': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Imágenes &copy; Esri' }),
+    'Sin fondo': L.layerGroup()
+  };
+  BASES['Calles'].addTo(map);
+  L.control.layers(BASES, null, { position: 'topright', collapsed: true }).addTo(map);
+
+  function indDef(k) { return IND.find(i => i.k === k); }
+  function valOf(p, k) { return p[k]; }
+
+  function fillFor(p, isMun) {
+    if (state.ind === 'ias') {
+      const pr = isMun ? p.prioridad : (MUN_BY_NAME[p.mun] || {}).prioridad;
+      return C['--' + (pr || 'media').toLowerCase()];
+    }
+    return C[CLASSES.find(c => c.id === cls(valOf(p, state.ind))).tok];
+  }
+  let MUN_BY_NAME = {};
+
+  function styleVer(f) {
+    const sel = state.sel && state.sel.type === 'ver' && state.sel.id === f.id;
+    if (state.level === 'mun') return { stroke: true, color: C['--edge'], weight: 0.4, fill: false, opacity: .35 };
+    return { stroke: true, color: sel ? C['--accent'] : C['--edge'], weight: sel ? 3 : 0.5, opacity: 1, fill: true, fillColor: fillFor(f.properties, false), fillOpacity: 0.78 };
+  }
+  function styleMun(f) {
+    const sel = state.sel && state.sel.type === 'mun' && state.sel.id === f.properties.mun;
+    if (state.level === 'ver') return { stroke: true, color: sel ? C['--accent'] : C['--mun-edge'], weight: sel ? 3 : 1.1, opacity: .9, fill: false };
+    return { stroke: true, color: sel ? C['--accent'] : C['--mun-edge'], weight: sel ? 3 : 0.9, opacity: .9, fill: true, fillColor: fillFor(f.properties, true), fillOpacity: 0.78 };
+  }
+
+  function tipVer(layer) {
+    const p = layer.feature.properties;
+    if (state.ind === 'ias') { const m = MUN_BY_NAME[p.mun]; return `<b>${p.ver}</b> · ${p.mun}<br>IAS municipal <span class="tv">${P1.format(m.ias)}</span> · prioridad ${m.prioridad.toLowerCase()}`; }
+    return `<b>${p.ver}</b> · ${p.mun}<br>${indDef(state.ind).n}: <span class="tv">${fmtP(p[state.ind])}</span><br><span class="tv">${fmtN(p.pob)}</span> hab.`;
+  }
+  function tipMun(layer) {
+    const p = layer.feature.properties;
+    if (state.ind === 'ias') return `<b>${p.mun}</b><br>IAS <span class="tv">${P1.format(p.ias)}</span> · prioridad ${p.prioridad.toLowerCase()}<br>Puesto ${p.ranking} de 37`;
+    return `<b>${p.mun}</b><br>${indDef(state.ind).n}: <span class="tv">${fmtP(p[state.ind])}</span><br><span class="tv">${fmtN(p.pob)}</span> hab. rurales`;
+  }
+
+  function restyle() {
+    if (!verLayer) return;
+    verLayer.setStyle(styleVer);
+    munLayer.setStyle(styleMun);
+    if (state.level === 'ver') { munLayer.bringToFront(); }
+    else { verLayer.bringToBack(); }
+    if (state.sel) { const l = findLayer(state.sel); if (l) l.bringToFront(); }
+    // el renderer canvas lee "interactive" en cada evento: solo responde la capa del nivel activo
+    munLayer.eachLayer(l => l.options.interactive = state.level === 'mun');
+    verLayer.eachLayer(l => l.options.interactive = state.level === 'ver');
+    renderLegend(); renderInds(); renderRank();
+  }
+
+  function findLayer(sel) {
+    let out = null;
+    const lay = sel.type === 'ver' ? verLayer : munLayer;
+    lay.eachLayer(l => { if ((sel.type === 'ver' ? l.feature.id : l.feature.properties.mun) === sel.id) out = l; });
+    return out;
+  }
+
+  /* ---------- Panel ---------- */
+  function renderInds() {
+    const box = document.getElementById('inds');
+    box.innerHTML = '';
+    IND.forEach(d => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'ind'; b.setAttribute('aria-pressed', String(state.ind === d.k));
+      if (d.k === 'ias') {
+        b.innerHTML = `<span class="n">${d.n} <span class="scope">· municipal</span></span><span class="v">${P1.format(R.ias_prom)}</span>`;
+      } else {
+        b.innerHTML = `<span class="n">${d.n}</span><span class="v">${fmtP(R[d.k])}</span><span class="bar"><i style="width:${R[d.k]}%"></i></span>`;
+      }
+      b.addEventListener('click', () => {
+        state.ind = d.k;
+        if (d.k === 'ias') setLevel('mun', true);
+        restyle(); renderFicha();
+      });
+      box.appendChild(b);
+    });
+  }
+
+  function renderLegend() {
+    const el = legendCtl.getContainer();
+    const def = indDef(state.ind);
+    let items, counts = {};
+    if (state.ind === 'ias') {
+      MUN.features.forEach(f => counts[f.properties.prioridad] = (counts[f.properties.prioridad] || 0) + 1);
+      items = PRIO.map(p => ({ t: p.t, c: C[p.tok], n: counts[p.id] || 0 }));
+    } else {
+      const feats = state.level === 'ver' ? VER.features : MUN.features;
+      feats.forEach(f => { const c = cls(f.properties[state.ind]); counts[c] = (counts[c] || 0) + 1; });
+      items = CLASSES.filter(c => c.id !== 'n' || counts.n).map(c => ({ t: c.t, c: C[c.tok], n: counts[c.id] || 0 }));
+    }
+    const unit = state.ind === 'ias' || state.level === 'mun' ? 'municipios' : 'veredas';
+    el.innerHTML = `<h3>${def.n}</h3><ul>${items.map(i => `<li><span class="sw" style="background:${i.c}"></span><span>${i.t}</span><span class="ct">${fmtN(i.n)}</span></li>`).join('')}</ul><p class="note" style="margin-top:6px">${unit === 'veredas' ? 'Número de veredas' : 'Número de municipios'}</p>`;
+  }
+
+  function meterColor(v) { return C[CLASSES.find(c => c.id === cls(v)).tok]; }
+
+  function rowsHTML(p) {
+    return IND.filter(d => !d.mun).map(d => {
+      const v = p[d.k];
+      let num = d.num ? p[d.num] : (p.p_al + p.p_si);
+      const den = p[d.den];
+      const c = (v < 0) ? (d.k === 'micro' ? 'Sin suscriptores registrados' : 'Sin población registrada') : `${fmtN(num)} de ${fmtN(den)} ${d.u}`;
+      return `<div class="row"><span class="l">${d.n}</span><span class="p">${fmtP(v)}</span><span class="meter"><i style="width:${Math.max(0, v)}%;background:${meterColor(v)}"></i></span><span class="c">${c}</span></div>`;
+    }).join('');
+  }
+
+  function renderFicha() {
+    const el = document.getElementById('ficha');
+    const s = state.sel;
+    if (!s) {
+      el.innerHTML = `
+        <div class="ficha-head"><div><p class="eyebrow" style="margin:0 0 4px">Departamento</p><h2>Huila rural</h2><div class="sub">Seleccione una vereda o un municipio en el mapa</div></div></div>
+        <div class="facts">
+          <div class="fact"><b>${fmtN(R.pob)}</b><span>habitantes rurales</span></div>
+          <div class="fact"><b>${fmtN(R.viv)}</b><span>viviendas</span></div>
+          <div class="fact"><b>${fmtN(R.ver_sin)}</b><span>veredas sin acueducto</span></div>
+        </div>
+        <div><p class="eyebrow">Municipios por prioridad · IAS promedio ${P1.format(R.ias_prom)}</p>
+        <div class="prio-strip">${PRIO.map(p => `<div style="border-top-color:${C[p.tok]}"><b>${R.n_prior[p.id]}</b><span>prioridad ${p.id.toLowerCase()}</span></div>`).join('')}</div></div>`;
+      return;
+    }
+    if (s.type === 'ver') {
+      const p = findLayer(s).feature.properties;
+      const m = MUN_BY_NAME[p.mun];
+      el.innerHTML = `
+        <div class="ficha-head"><div><p class="eyebrow" style="margin:0 0 4px">${p.tipo} · ${p.cod}</p><h2>${p.ver}</h2><div class="sub">Municipio de ${p.mun} · prioridad municipal <span class="pill ${m.prioridad}">${m.prioridad}</span></div></div>
+        <button class="linkbtn" type="button" id="clear">Cerrar</button></div>
+        <div class="facts">
+          <div class="fact"><b>${fmtN(p.pob)}</b><span>habitantes</span></div>
+          <div class="fact"><b>${fmtN(p.viv)}</b><span>viviendas</span></div>
+          <div class="fact"><b>${fmtN(p.sol)}</b><span>soluciones individuales</span></div>
+        </div>
+        <dl class="kv">
+          <dt>Prestador</dt><dd>${p.prest || '—'}</dd>
+          <dt>Tipo de acueducto</dt><dd>${p.tacu || '—'}</dd>
+          <dt>Planta de tratamiento</dt><dd>${p.ptap || 'Sin información'}</dd>
+        </dl>
+        <div class="rows">${rowsHTML(p)}</div>
+        <button class="linkbtn" type="button" id="gomun">Ver municipio de ${p.mun}</button>`;
+      document.getElementById('gomun').onclick = () => selectMun(p.mun, true);
+    } else {
+      const p = MUN_BY_NAME[s.id];
+      el.innerHTML = `
+        <div class="ficha-head"><div><p class="eyebrow" style="margin:0 0 4px">Municipio · puesto ${p.ranking} de 37 en IAS</p><h2>${p.mun}</h2><div class="sub">IAS ${P1.format(p.ias)} · prioridad <span class="pill ${p.prioridad}">${p.prioridad}</span></div></div>
+        <button class="linkbtn" type="button" id="clear">Cerrar</button></div>
+        <div class="facts">
+          <div class="fact"><b>${fmtN(p.nver)}</b><span>veredas</span></div>
+          <div class="fact"><b>${fmtN(p.pob)}</b><span>habitantes rurales</span></div>
+          <div class="fact"><b>${fmtN(p.ver_sin)}</b><span>veredas sin acueducto</span></div>
+        </div>
+        <div class="rows">${rowsHTML(p)}</div>
+        <dl class="kv"><dt>Brecha acueducto – agua tratada</dt><dd>${P1.format(p.brecha)} puntos</dd></dl>`;
+    }
+    document.getElementById('clear').onclick = () => { state.sel = null; restyle(); renderFicha(); };
+  }
+
+  function renderRank() {
+    const el = document.getElementById('rank');
+    const k = state.ind;
+    const list = MUN.features.map(f => f.properties).slice()
+      .sort((a, b) => k === 'ias' ? a.ranking - b.ranking : (a[k] - b[k]) || a.mun.localeCompare(b.mun));
+    document.getElementById('rank-title').textContent = k === 'ias' ? 'Municipios por IAS, del más crítico al mejor' : `Municipios por ${indDef(k).n.toLowerCase()}, de menor a mayor`;
+    el.innerHTML = '';
+    list.forEach((p, i) => {
+      const v = k === 'ias' ? p.ias : p[k];
+      const col = k === 'ias' ? C['--' + p.prioridad.toLowerCase()] : meterColor(v);
+      const w = k === 'ias' ? Math.min(100, v / 70 * 100) : Math.max(0, v);
+      const b = document.createElement('button');
+      b.type = 'button';
+      if (state.sel && state.sel.type === 'mun' && state.sel.id === p.mun) b.className = 'sel';
+      b.innerHTML = `<span class="i">${i + 1}</span><span class="nm">${p.mun}</span><span class="b"><i style="width:${w}%;background:${col}"></i></span><span class="pv">${P1.format(v)}</span>`;
+      b.addEventListener('click', () => selectMun(p.mun, true));
+      el.appendChild(b);
+    });
+  }
+
+  /* ---------- Selección ---------- */
+  function setLevel(l, quiet) {
+    state.level = l;
+    document.getElementById('lvl-ver').setAttribute('aria-pressed', String(l === 'ver'));
+    document.getElementById('lvl-mun').setAttribute('aria-pressed', String(l === 'mun'));
+    if (l === 'ver' && state.ind === 'ias') state.ind = 'acu';
+    if (!quiet) { restyle(); renderFicha(); }
+  }
+  function selectVer(id, zoom) {
+    if (state.level !== 'ver') setLevel('ver', true);
+    state.sel = { type: 'ver', id };
+    restyle(); renderFicha();
+    const l = findLayer(state.sel);
+    if (zoom && l) map.flyToBounds(l.getBounds(), { maxZoom: 12.5, padding: [40, 40], duration: .6 });
+  }
+  function selectMun(name, zoom) {
+    state.sel = { type: 'mun', id: name };
+    restyle(); renderFicha();
+    const l = findLayer(state.sel);
+    if (zoom && l) map.flyToBounds(l.getBounds(), { padding: [30, 30], duration: .6 });
+  }
+
+  document.getElementById('lvl-ver').onclick = () => setLevel('ver');
+  document.getElementById('lvl-mun').onclick = () => setLevel('mun');
+
+  /* ---------- Buscador ---------- */
+  const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  let INDEX = [], hits = [], active = -1;
+  const q = document.getElementById('q'), res = document.getElementById('results');
+  function search() {
+    const t = norm(q.value.trim());
+    if (t.length < 2) { res.hidden = true; return; }
+    hits = INDEX.filter(e => e.key.includes(t)).sort((a, b) => (a.key.indexOf(t) - b.key.indexOf(t)) || (a.type === 'mun' ? -1 : 1)).slice(0, 30);
+    active = -1;
+    res.innerHTML = hits.length ? '' : '<div class="note" style="padding:8px 10px">Sin resultados</div>';
+    hits.forEach((h, i) => {
+      const b = document.createElement('button'); b.type = 'button';
+      b.innerHTML = `<span>${h.label}</span><small>${h.type === 'mun' ? 'Municipio' : h.mun}</small>`;
+      b.addEventListener('click', () => pick(i));
+      res.appendChild(b);
+    });
+    res.hidden = false;
+  }
+  function pick(i) {
+    const h = hits[i]; if (!h) return;
+    res.hidden = true; q.value = h.label;
+    h.type === 'mun' ? selectMun(h.id, true) : selectVer(h.id, true);
+  }
+  q.addEventListener('input', search);
+  q.addEventListener('keydown', e => {
+    if (res.hidden) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault(); active = Math.max(0, Math.min(hits.length - 1, active + (e.key === 'ArrowDown' ? 1 : -1)));
+      [...res.querySelectorAll('button')].forEach((b, i) => b.classList.toggle('on', i === active));
+    } else if (e.key === 'Enter') { e.preventDefault(); pick(active < 0 ? 0 : active); }
+    else if (e.key === 'Escape') { res.hidden = true; }
+  });
+  document.addEventListener('click', e => { if (!e.target.closest('.search')) res.hidden = true; });
+
+  /* ---------- Tema ---------- */
+  const onTheme = () => { readTokens(); restyle(); renderFicha(); };
+  try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', onTheme); } catch (e) {}
+  new MutationObserver(onTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  /* ---------- Carga ---------- */
+  Promise.all(['resumen.json', 'veredas.json', 'municipios.json'].map(u => fetch(u).then(r => { if (!r.ok) throw new Error(u); return r.json(); })))
+    .then(([r, v, m]) => {
+      R = r; VER = v; MUN = m;
+      MUN.features.forEach(f => MUN_BY_NAME[f.properties.mun] = f.properties);
+      const renderer = L.canvas({ padding: 0.3, tolerance: 2 });
+      verLayer = L.geoJSON(VER, { renderer, style: styleVer, onEachFeature: (f, l) => {
+        l.bindTooltip(tipVer, { sticky: true, direction: 'top', offset: [0, -8] });
+        l.on('click', () => { if (state.level === 'ver') selectVer(f.id, false); });
+      } }).addTo(map);
+      munLayer = L.geoJSON(MUN, { renderer, style: styleMun, onEachFeature: (f, l) => {
+        l.bindTooltip(tipMun, { sticky: true, direction: 'top', offset: [0, -8] });
+        l.on('click', () => selectMun(f.properties.mun, false));
+      } }).addTo(map);
+      INDEX = VER.features.map(f => ({ type: 'ver', id: f.id, label: f.properties.ver, mun: f.properties.mun, key: norm(f.properties.ver + ' ' + f.properties.mun) }))
+        .concat(MUN.features.map(f => ({ type: 'mun', id: f.properties.mun, label: f.properties.mun, key: norm(f.properties.mun) })));
+      const b = munLayer.getBounds();
+      map.fitBounds(b, { padding: [16, 16] });
+      map.setMaxBounds(b.pad(0.6));
+      legendCtl = L.control({ position: 'bottomleft' });
+      legendCtl.onAdd = () => { const d = L.DomUtil.create('div', 'legend'); L.DomEvent.disableClickPropagation(d); return d; };
+      legendCtl.addTo(map);
+      document.getElementById('loading').hidden = true;
+      restyle(); renderFicha();
+    })
+    .catch(err => { document.getElementById('loading').textContent = 'No se pudieron cargar las capas. Recargue la página.'; console.error(err); });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+{
+ "nver": 1517,
+ "nmun": 37,
+ "pob": 561581,
+ "viv": 117100,
+ "ver_sin": 392,
+ "p_ab": 373697,
+ "p_tr": 100688,
+ "sus": 80277,
+ "mic": 20526,
+ "p_al": 90419,
+ "p_si": 34336,
+ "sane_h": 124755,
+ "acu": 66.54,
+ "trat": 17.93,
+ "micro": 25.57,
+ "alc": 16.1,
+ "solp": 6.11,
+ "sane": 22.21,
+ "ias_prom": 34.3,
+ "n_prior": {
+  "Alta": 13,
+  "Media": 12,
+  "Baja": 12
+ },
+ "umbral_alta": 28.4,
+ "umbral_media": 37.7
+}
