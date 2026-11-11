@@ -183,6 +183,7 @@ header p { margin: 6px 0 0; color: var(--muted); font-size: 12.5px; }
   .leaflet-zoom-anim .leaflet-zoom-animated { transition: none; }
 }
 body { margin: 0; }
+[hidden] { display: none !important; }
 .leaflet-container .leaflet-control-attribution { background: color-mix(in srgb, var(--panel) 85%, transparent); color: var(--muted); }
 .leaflet-container .leaflet-control-attribution a { color: var(--accent); }
 .leaflet-bar a, .leaflet-touch .leaflet-bar a { background: var(--panel); color: var(--fg); border-bottom: 0; }
@@ -286,7 +287,7 @@ body { margin: 0; }
   L.control.scale({ position: 'bottomright', imperial: false }).addTo(map);
   map.setView([2.5, -75.6], 8);
   const BASES = {
-    'Calles': L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { subdomains: 'abcd', maxZoom: 19, attribution: '&copy; OpenStreetMap &copy; CARTO' }),
+    'Calles': L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }),
     'Satélite': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Imágenes &copy; Esri' }),
     'Sin fondo': L.layerGroup()
   };
